@@ -330,8 +330,8 @@ TimeDiff toTimeDiff(string s)
         td.negative = true;
         t = -t;
     }
-    td.hours    = cast( ubyte )t%24;
-    td.days     = cast( ubyte )t/24;
+    td.hours    = cast(ubyte) t%24;
+    td.days     = cast(ubyte) t/24;
     munch(s, ":");
     td.minutes  = parse!ubyte(s);
     munch(s, ":");
@@ -4122,8 +4122,8 @@ public:
         ulong ra;
         enforceEx!MYX(execSQL(ra), "The executed query did not produce a result set.");
         Row rr = getNextRow();
-        if (!rr._valid)   // The result set was empty - not a crime.
-            return;
+        /+if (!rr._valid)   // The result set was empty - not a crime.
+            return;+/
         enforceEx!MYX(rr._values.length == args.length, "Result column count does not match the target tuple.");
         foreach (size_t i, dummy; args)
         {
@@ -4391,7 +4391,7 @@ public:
         ulong ra;
         enforceEx!MYX(execPrepared(ra), "The executed query did not produce a result set.");
         Row rr = getNextRow();
-        enforceEx!MYX(rr._valid, "The result set was empty.");
+        /+enforceEx!MYX(rr._valid, "The result set was empty.");+/
         enforceEx!MYX(rr._values.length == 1, "Result was not a single column.");
         enforceEx!MYX(typeid(target).toString() == rr._values[0].type.toString(),
                         "Target type and column type are not compatible.");
