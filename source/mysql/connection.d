@@ -3064,7 +3064,8 @@ public:
     {
         foreach (i, dummy; s.tupleof)
         {
-            static if(__traits(hasMember, s.tupleof[i], "get")) // is Nullable!T?
+            static if(__traits(hasMember, s.tupleof[i], "nullify") &&
+                      is(typeof(s.tupleof[i].nullify())) && is(typeof(s.tupleof[i].get)))
             {
                 if(!_nulls[i])
                 {
@@ -3072,6 +3073,8 @@ public:
                         "At col "~to!string(i)~" the value is not implicitly convertible to the structure type");
                     s.tupleof[i] = _values[i].get!(typeof(s.tupleof[i].get));
                 }
+                else
+                    s.tupleof[i].nullify();
             }
             else
             {
@@ -3272,19 +3275,14 @@ private:
     Command*    _cmd;
     Row         _row; // current row
     string[]    _colNames;
+    size_t[string] _colNameIndicies;
     ulong       _numRowsFetched;
-    bool        _empty;
 
     this (Command* cmd, string[] colNames)
     {
         _cmd      = cmd;
         _colNames = colNames;
         popFront();
-    }
-
-    pure const nothrow invariant()
-    {
-        assert(!_empty && _cmd); // command must exist while not empty
     }
 
 public:
@@ -3297,7 +3295,7 @@ public:
      * Make the ResultSequence behave as an input range - empty
      *
      */
-    @property bool empty() const pure nothrow { return _empty; }
+    @property bool empty() const pure nothrow { return _cmd is null || !_cmd._rowsPending; }
 
     /**
      * Make the ResultSequence behave as an input range - front
@@ -3306,7 +3304,7 @@ public:
      */
     @property inout(Row) front() pure inout
     {
-        enforceEx!MYX(!_empty, "Attempted 'front' on exhausted result sequence.");
+        enforceEx!MYX(!empty, "Attempted 'front' on exhausted result sequence.");
         return _row;
     }
 
@@ -3317,14 +3315,9 @@ public:
      */
     void popFront()
     {
-        enforceEx!MYX(!_empty, "Attempted 'popFront' when no more rows available");
+        enforceEx!MYX(!empty, "Attempted 'popFront' when no more rows available");
         _row = _cmd.getNextRow();
-        /+
-        if (!_row._valid)
-            _empty = true;
-        else
-            +/
-            _numRowsFetched++;
+        _numRowsFetched++;
     }
 
     /**
@@ -3332,7 +3325,7 @@ public:
      */
      DBValue[string] asAA()
      {
-        enforceEx!MYX(!_empty, "Attempted 'front' on exhausted result sequence.");
+        enforceEx!MYX(!empty, "Attempted 'front' on exhausted result sequence.");
         DBValue[string] aa;
         foreach (size_t i, string s; _colNames)
         {
@@ -3344,7 +3337,22 @@ public:
         return aa;
      }
 
-    /**
+    /// Get the names of all the columns
+    @property const(string)[] colNames() const pure nothrow { return _colNames; }
+
+    /// An AA to lookup a column's index by name
+    @property const(size_t[string]) colNameIndicies() pure nothrow
+    {
+        if(_colNameIndicies is null)
+        {
+            foreach(index, name; _colNames)
+                _colNameIndicies[name] = index;
+        }
+
+        return _colNameIndicies;
+    }
+
+  /**
      * Explicitly clean up the MySQL resources and cancel pending results
      *
      */
@@ -3352,7 +3360,6 @@ public:
     {
         if(_cmd)
             _cmd.purgeResult();
-        _empty = true; // small hack to throw an exception rather than using a closed command
         _cmd = null;
     }
 
